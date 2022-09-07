@@ -20,6 +20,8 @@ lxml = "^4.9.1"
 ipykernel = "^6.15.1"
 jupytext = "^1.14.1"
 nbformat = "^5.4.0"
+flake8 = "^5.0.4"
+yapf = "^0.32.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
