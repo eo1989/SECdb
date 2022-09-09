@@ -1,5 +1,9 @@
+from dateutil import parser
+from datetime import datetime
+from contextlib import closing
 from multiprocessing.sharedctypes import Value
 import sqlite3
+from sqlite3 import Error
 import time
 import requests as req
 import requests_random_user_agent as ragent
@@ -380,3 +384,241 @@ class Extract_Data:
 						table data into the DataFrame.\n{e}')
         else:
             print(f'No table detected for {report_url}.')
+
+    # Retrieve necessary information to extract data from the table's URL.
+    def get_tables(self):
+        dfs = []
+        with DB_Connection.open_con(db_path) as conn:
+            for company_CIK in filings1.company_CIKs:
+                for filing_type in filings1.filingstypes:
+                    try:
+                        df = pd.read_sql_query("""
+                            SELECT a.filing_number,
+                                   a.company_name,
+                                   a.filing_type,
+                                   a.filing_date,
+                                   b.short_name,
+                                   b.report_url
+                            FROM filing_list a
+                            INNER JOIN individual_report_links b
+                            ON a.filing_number = b.filing_number
+                            WHERE b.report_url LIKE '%.htm%'
+                            AND a.cik = ?
+                            AND a.filing_type = ?
+                            AND a.filing_date BETWEEN ? AND ?
+                            ORDER by filing_date DESC
+                            LIMIT ?
+                            """,
+                                               con=conn,
+                                               params=(company_CIK,
+                                                       filing_type,
+                                                       filings1.start_date,
+                                                       filings1.end_date, 10))
+                        dfs.append(df)
+                    except ValueError as e:
+                        print(
+                            f"Error occured while attempting to retrieve data \
+                                from the SQL db.\nAborting the program.\n{e}")
+                        sys.exit(1)
+
+            df_query1 = pd.concat(dfs)
+            # if the df is empty, terminate the program.
+            if len(df_query1) == 0:
+                print(
+                    'Dataframe is empty, aborting the program.\nAborting the program'
+                )
+                sys.exit(1)
+            else:
+                # if max recursion error occurs, increase recursion limit. sys.setrecursionlimit(25000)
+                pass
+            for filing_number, company_name, filing_type, filing_date, short_name, report_url in df_query1.itertuples(
+                    index=False):
+                print(f'Processing {short_name} table at {report_url}.')
+
+                if report_url.endswith('.htm'):
+                    try:
+                        self.html_table_extractor(report_url)
+                    except ValueError as e:
+                        print(
+                            f'Couldnt retrieve the table for filing number {filing_number} at {report_url}\n{e}'
+                        )
+                        break
+                    else:
+                        try:
+                            # want to name the table with a unique table name for easy reference
+                            table_name = filing_type + filing_date + '_' + short_name.replace(
+                                ' ', '_') + '_' + str(filing_number)
+                            # remove all special chars (unicode, ascii) except '_'
+                            table_name = re.sub(r"[^a-zA-Z0-9]+", '_',
+                                                table_name)
+                            print(
+                                f'Inserting data from the dataframe into SQL table {table_name}'
+                            )
+                            # check to see if the table already exists in db to avoid duplication
+                            with closing(conn.cursor()) as cursor:
+                                cursor.execute(f""" SELECT count(name)
+                                               FROM sqlite_master
+                                               WHERE type='table' AND name= '{table_name}' """
+                                               )  # SQL injection much?
+                                # if count is 1 -> table exists
+                                if cursor.fetchone()[0] == 1:
+                                    print(
+                                        f'Table {table_name} already exists.')
+                                else:
+                                    # Write records that are stored in the Dataframe into a SQL server database.
+                                    self.df_xml.to_sql(con=conn,
+                                                       name=table_name,
+                                                       schema='SCHEMA',
+                                                       index=False,
+                                                       if_exists='fail')
+                        except ValueError as e:
+                            print(
+                                f"Couldnt migrate the {short_name} table to the SQL database.\n{e}"
+                            )
+                elif report_url.endswith('.xml'):
+                    print(
+                        f'.xml extension link detected. Unable to process the table.\
+                        \n.xml extension link support will be developed in the future.'
+                    )
+                else:
+                    print(
+                        f'Table for filing number {filing_number} couldnt be detected.'
+                    )
+        DB_Connection.close_conn()
+
+    # Normalizing data.
+    def transpose(self):
+
+        db2_path = db_path.replace('.db', '_transposed;db')
+        with DB_Connection.open_con(db_path) as conn:
+            try:
+                df_table_list = pd.read_sql_query(
+                    """
+                    SELECT name AS table_name
+                    FROM sqlite_master
+                    WHERE type='table'
+                    """, conn)
+            except ValueError as e:
+                print(f'Couldnt retrieve table list.\n{e}')
+            for row in df_table_list.itertuples(index=False):
+                try:
+                    df_table = pd.read_sql_query(
+                        """ SELECT * FROM "{}" """.format(row.table_name),
+                        con=conn)
+                except ValueError as e:
+                    print(f'couldnt read table {table_name}.\n{e}')
+                else:
+                    try:
+                        while row.table_name not in [
+                                'filing_list', 'individual_report_links'
+                        ]:
+                            # remove dup rows w/ same values
+                            df_table = df_table.drop_duplicates()
+                            # tranpose da pandas df!
+                            df_table = df_table.T
+                            # transform that first rows into the header!
+                            df_table.columns = df_table.iloc[0]
+                            df_table = df_table[1:]
+                            # remove special chars again {unicode, ascii}, replace empty spaces with _
+                            df_table = df_table.rename(
+                                columns=lambda x: re.sub('\W+', '_', str(x)))
+                            df_table.columns = df_table.columns.str.strip('_')
+                            df_table.columns = df_table.columns.str.lower('_')
+                            # convert idx of df into a col
+                            df_table.reset_index(level=0, inplace=True)
+                            # Format that dirty date col
+                            try:
+                                date_list = []
+                                for item in df_table.iloc[:, 0]:
+                                    match = re.search('\D{3}. \d{2}, \d{4}',
+                                                      item)
+                                    if match is not None:
+                                        # .strftime removes the timestamp
+                                        date = parser.parse(
+                                            match.group()).strftime("%Y-%m-%d")
+                                        date_list.append(date)
+                                    else:
+                                        date_list.append(item)
+                                df_table.rename(
+                                    columns={df_table.columns[0]: 'date'},
+                                    inplace=True)
+                                df_table['date'] = date_list
+                                print('Successfully formatted the date.')
+                            except Exception as e:
+                                df_table.rename(
+                                    columns={df_table.columns[0]: 'name'},
+                                    inplace=True)
+                                print(e)
+
+                            # convert rows to numeric dtypes (ints, floats)
+                            df_table.replace(',', '', regex=True, inplace=True)
+                            df_table = df_table.apply(pd.to_numeric,
+                                                      errors='ignore')
+                            # rename duplicate rows w/ same name
+                            if any(df_table.columns.duplicated()):
+                                print(
+                                    'Duplicate column name detected.\nRenaming the duplicate column name.  '
+                                )
+                                columns_series = pd.Series(df_table.columns)
+                                for dup in columns_series[
+                                        columns_series.duplicated()].unique():
+                                    columns_series[columns_series[
+                                        columns_series ==
+                                        dup].index.values.tolist()] = [
+                                            dup + '.' +
+                                            str(i) if i != 0 else dup
+                                            for i in range(
+                                                sum(columns_series == dup))
+                                        ]
+                                    df_table.columns = columns_series
+                                break
+                    except Exception as e:
+                        print(f'Couldnt transpose the table :|.\n{e}')
+                    else:
+                        with DB_Connection.open_con(db2_path) as conn2:
+                            # chk to see if table already exists in db
+                            with closing(conn2.cursor()) as cursor:
+                                cursor.execute(f""" SELECT count(name)
+                                               FROM sqlite_master
+                                               WHERE type='table' AND name= '{row.table_name}' """
+                                               )  # SQL INJECTOIN MUCH
+                                # if count is 1, then table exists
+                                if cursor.fetchone(
+                                )[0] == 1 and row.table_name not in [
+                                        'filing_list',
+                                        'individual_report_links'
+                                ]:
+                                    print(
+                                        f'Table {row.rable_name} already exists.'
+                                    )
+                                else:
+                                    try:
+                                        print(
+                                            f'Connected to {db2_path} database.'
+                                        )
+                                        print(
+                                            f'Inserting data from the dataframe into SQL table {row.table_name}'
+                                        )
+                                        # write records that are stored in the df into sql db
+                                        df_table.to_sql(con=conn2,
+                                                        name=row.table_name,
+                                                        schema='SCHEMA',
+                                                        if_exists='replace',
+                                                        index=False)
+                                    except Exception as e:
+                                        print(
+                                            f'Couldnt migrate the {row.table_name} table to the normalized SQL db.\n{e}'
+                                        )
+        DB_Connection.close_con()
+
+
+connection1 = DB_Connection(db_name, folder_path, db_path)
+connection1.create_folder()
+
+filings1 = Filing_Links(company_CIKS, filing_types, start_date, end_date)
+filings1.Get_FLinks()
+filings1.get_table_links()
+
+data1 = Extract_Data()
+data1.get_tables()
+data1.transpose()
