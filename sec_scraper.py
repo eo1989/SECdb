@@ -12,6 +12,8 @@ from bs4 import BeautifulSoup as bs4
 import os, sys
 import re
 
+# ---------------------------------------------
+# Refactor all of the below into a Class.
 company_CIKS = ['1018724', '1318605', '789019']
 filing_types = ['10-k']  # '10-k', '10-Q', '8-k', etc
 db_name = 'edgar.db'
@@ -20,6 +22,7 @@ db_path = f"{folder_path}/{db_name}"
 
 start_date = '2020-01-01'
 end_date = '2022-08-31'
+#---------------------------------------------
 
 
 class DB_Connection:
