@@ -1,7 +1,7 @@
+from urllib.parse import uses_relative
 from dateutil import parser
 from datetime import datetime
 from contextlib import closing
-from multiprocessing.sharedctypes import Value
 import sqlite3
 from sqlite3 import Error
 import time
@@ -14,33 +14,47 @@ import re
 
 # ---------------------------------------------
 # Refactor all of the below into a Class.
-company_CIKS = ['1018724', '1318605', '789019']
-filing_types = ['10-k']  # '10-k', '10-Q', '8-k', etc
-db_name = 'edgar.db'
-folder_path = r"/home/rocket/Code/Projects/Py/SECdb/sqlite/"  # convert to win64 'C:\'
-db_path = f"{folder_path}/{db_name}"
+# company_CIKS = ['1018724', '1318605', '789019']
+# filing_types = ['10-k']  # '10-k', '10-Q', '8-k', etc
+# db_name = 'edgar.db'
+# folder_path = r"/home/rocket/Code/Projects/Py/SECdb/sqlite/"  # convert to win64 'C:\'
+# db_path = f"{folder_path}/{db_name}"
 
-start_date = '2020-01-01'
-end_date = '2022-08-31'
+# start_date = '2020-01-01'
+# end_date = '2022-08-31'
 #---------------------------------------------
+
+
+class UserParams:
+
+    @classmethod
+    def __init__(self):
+        self.company_CIKS = []
+        self.filing_types = []
+        self.db_name = 'edgar.db'
+        self.folder_path = r"/home/rocket/Code/Projects/Py/SECdb/sqlite/"
+        self.db_path = ''
+        self.start_date = '2020-01-01'
+        self.end_date = '2022-08-31'
+        self.error_messages = []
 
 
 class DB_Connection:
     """Initialize obj attrs"""
 
-    def __init__(self, db_name, folder_path, db_path):
-        self.db_name = db_name
-        self.folder_path = folder_path
-
+    # def __init__(self, db_name, folder_path, db_path):
+    # 	self.db_name = db_name
+    # 	self.folder_path = folder_path
     """ Create a directory for the DB file if the directory doesnt exist. """
 
     def create_folder(self):
-        if not os.path.exists(self.folder_path):
-            os.makedirs(self.folder_path)
+        if not os.path.exists(UserParams.folder_path):
+            os.makedirs(UserParams.folder_path)
             print(
-                f'Successfully created the new folder path {self.folder_path}')
+                f'Successfully created the new folder path {UserParams.folder_path}'
+            )
         else:
-            print(f'Folder path {self.folder_path} already exists.')
+            print(f'Folder path {UserParams.folder_path} already exists.')
 
     # Open connection to the db, if the connection fails then abort.
     # If db file doesn't exist, automatically create itself.
@@ -52,11 +66,10 @@ class DB_Connection:
             return cls.conn
         except sqlite3.Error as e:
             print(
-                f'Error occured, unable to connect to the {db_path} database.\
-	   				\n{e}\nAborting program.')
-            # sys.exit(0) --> means the program is exiting w/o any errors
-            # sys.exit(1) --> means error
-            sys.exit(1)
+                f'Error occured, unable to connect to the {db_path} database.')
+            print(e)
+            UserParams.error_messages.append(e)
+            return None
 
     @classmethod
     def close_con(cls):
@@ -72,18 +85,21 @@ class DB_Connection:
 class Filing_Links:
     """a"""
 
-    def __init__(self, company_CIKS, filing_types, start_date, end_date):
-        self.company_CIKS = company_CIKS
-        # Capitalize the letters of the forms, by default sqlite is case sensitive.
-        self.filing_types = [item.upper() for item in filing_types]
-        self.start_date = start_date
-        self.end_date = end_date
+    def __init__(self):
+        UserParams.filing_types = [
+            item.upper() for item in UserParams.filing_types
+        ]
+        # self.company_CIKS = company_CIKS
+        # # Capitalize the letters of the forms, by default sqlite is case sensitive.
+        # self.filing_types = [item.upper() for item in filing_types]
+        # self.start_date = start_date
+        # self.end_date = end_date
 
     # Get all available filings for the specified CIKS and their respective links.
     def Get_FLinks(self):
         try:
-            for Company_CIK_Number in self.company_CIKS:
-                for Filing_Type in self.filing_types:
+            for Company_CIK_Number in UserParams.company_CIKS:
+                for Filing_Type in UserParams.filing_types:
                     # define the params dict
                     filing_params = {
                         'action': 'getcompany',
@@ -178,8 +194,8 @@ class Filing_Links:
                                 "href"]
                             # If the interactive data link exists, then so does the FilingSummary.xml link
                             Xml_Summary = Document_Link.replace(f"{Account_Number}", '')\
-                                     .replace('-', '')\
-                                     .replace('index.htm', '/FilingSummary.xml')
+                               .replace('-', '')\
+                               .replace('index.htm', '/FilingSummary.xml')
                         else:
                             # break ...?
                             Interactive_Data_Link = None
@@ -193,8 +209,10 @@ class Filing_Links:
         except Exception as e:
             print(f'Couldnt retrieve the table containing the necessary info. \
 	   			   \nAborting the program.\nIf index list is out of range, \
-				   that you entered the correct CIK number(s).\n{e}')
-            sys.exit(1)
+				   that you entered the correct CIK number(s).')
+            print(e)
+            UserParams.error_messages.append(e)
+            return None
 
     # Migrate the df containing the filing & document links to a local sqlite db.
     def info_to_sql(self, Company_Name, Company_CIK_Number, Account_Number,
@@ -221,8 +239,10 @@ class Filing_Links:
             except ValueError as e:
                 print(
                     f'Error occured while attempting to create the filing_list table.\
-						\nAborting the program.\n{e}')
-                sys.exit(1)
+						\nAborting the program.')
+                print(e)
+                UserParams.error_messages.append(e)
+                return None
             else:
                 print(f"Successfully created the table.")
                 print(
@@ -259,10 +279,10 @@ class Filing_Links:
     # Extract individual table links to financial statements, supplementary data tables, etc (everything?)
     def get_table_links(self):
         dfs = []
-        with DB_Connection.open_con(db_path) as conn:
+        with DB_Connection.open_con(UserParams.db_path) as conn:
             try:
-                for Company_CIK_Number in self.company_CIKS:
-                    for Filing_Type in self.filing_types:
+                for Company_CIK_Number in UserParams.company_CIKS:
+                    for Filing_Type in UserParams.filing_types:
                         df = pd.read_sql_query(
                             """
 							SELECT filing_number, xml_summary
@@ -282,14 +302,18 @@ class Filing_Links:
                 print(
                     f"Error occured while attempting to retireve data from filing_list table.\n{e}"
                 )
-                sys.exit(1)
+                print(e)
+                UserParams.error_messages.append(e)
+                return None
 
             # If the df is empty, exit.
             if len(df_query2) == 0:
                 print(
                     'Dataframe is empty, aborting the program.\nAborting the program.'
                 )
-                sys.exit(1)
+                print(error_msg)
+                UserParams.error_messages.append(error_msg)
+                return None
             try:
                 with closing(conn.cursor()) as cursor:
                     cursor.execute("""
@@ -305,7 +329,9 @@ class Filing_Links:
                 print(
                     f"Error occured while attempting to create individual_report_links table.\n{e}"
                 )
-                sys.exit(1)
+                print(e)
+                UserParams.error_messages.append(e)
+                return None
 
             # Extract the tables name and its respective URL
             # Currently, there isnt a function/method(?) to extract data from the .xml extension
@@ -355,7 +381,9 @@ class Filing_Links:
                         print(
                             f'Error occured while attempting to insert values into \
 		  						the individual_report_links table.\nAborting the program.\n{e}')
-                        sys.exit(1)
+                        print(e)
+                        UserParams.error_messages.append(e)
+                        return None
 
     DB_Connection.close_con()
 
@@ -377,10 +405,10 @@ class Extract_Data:
                 print("Insert table data into the dataframe.")
                 self.df_xml = pd.read_html(str(table))[0]
                 self.df_xml = self.df_xml.replace({'\$': ''}, regex = True)\
-                       .replace({'\)':''}, regex = True)\
-                       .replace({'\(':''}, regex = True)\
-                       .replace({'\%':''}, regex = True)\
-                       .replace({' ','', 1}, regex = True)
+                    .replace({'\)':''}, regex = True)\
+                    .replace({'\(':''}, regex = True)\
+                    .replace({'\%':''}, regex = True)\
+                    .replace({' ','', 1}, regex = True)
 
             except Exception as e:
                 print(f'Error occurred while attempting to insert \
@@ -396,22 +424,22 @@ class Extract_Data:
                 for filing_type in filings1.filingstypes:
                     try:
                         df = pd.read_sql_query("""
-                            SELECT a.filing_number,
-                                   a.company_name,
-                                   a.filing_type,
-                                   a.filing_date,
-                                   b.short_name,
-                                   b.report_url
-                            FROM filing_list a
-                            INNER JOIN individual_report_links b
-                            ON a.filing_number = b.filing_number
-                            WHERE b.report_url LIKE '%.htm%'
-                            AND a.cik = ?
-                            AND a.filing_type = ?
-                            AND a.filing_date BETWEEN ? AND ?
-                            ORDER by filing_date DESC
-                            LIMIT ?
-                            """,
+							SELECT a.filing_number,
+								   a.company_name,
+								   a.filing_type,
+								   a.filing_date,
+								   b.short_name,
+								   b.report_url
+							FROM filing_list a
+							INNER JOIN individual_report_links b
+							ON a.filing_number = b.filing_number
+							WHERE b.report_url LIKE '%.htm%'
+							AND a.cik = ?
+							AND a.filing_type = ?
+							AND a.filing_date BETWEEN ? AND ?
+							ORDER by filing_date DESC
+							LIMIT ?
+							""",
                                                con=conn,
                                                params=(company_CIK,
                                                        filing_type,
@@ -421,7 +449,7 @@ class Extract_Data:
                     except ValueError as e:
                         print(
                             f"Error occured while attempting to retrieve data \
-                                from the SQL db.\nAborting the program.\n{e}")
+								from the SQL db.\nAborting the program.\n{e}")
                         sys.exit(1)
 
             df_query1 = pd.concat(dfs)
@@ -460,8 +488,8 @@ class Extract_Data:
                             # check to see if the table already exists in db to avoid duplication
                             with closing(conn.cursor()) as cursor:
                                 cursor.execute(f""" SELECT count(name)
-                                               FROM sqlite_master
-                                               WHERE type='table' AND name= '{table_name}' """
+											   FROM sqlite_master
+											   WHERE type='table' AND name= '{table_name}' """
                                                )  # SQL injection much?
                                 # if count is 1 -> table exists
                                 if cursor.fetchone()[0] == 1:
@@ -481,8 +509,7 @@ class Extract_Data:
                 elif report_url.endswith('.xml'):
                     print(
                         f'.xml extension link detected. Unable to process the table.\
-                        \n.xml extension link support will be developed in the future.'
-                    )
+						\n.xml extension link support will be developed in the future.')
                 else:
                     print(
                         f'Table for filing number {filing_number} couldnt be detected.'
@@ -497,10 +524,10 @@ class Extract_Data:
             try:
                 df_table_list = pd.read_sql_query(
                     """
-                    SELECT name AS table_name
-                    FROM sqlite_master
-                    WHERE type='table'
-                    """, conn)
+					SELECT name AS table_name
+					FROM sqlite_master
+					WHERE type='table'
+					""", conn)
             except ValueError as e:
                 print(f'Couldnt retrieve table list.\n{e}')
             for row in df_table_list.itertuples(index=False):
@@ -582,8 +609,8 @@ class Extract_Data:
                             # chk to see if table already exists in db
                             with closing(conn2.cursor()) as cursor:
                                 cursor.execute(f""" SELECT count(name)
-                                               FROM sqlite_master
-                                               WHERE type='table' AND name= '{row.table_name}' """
+											   FROM sqlite_master
+											   WHERE type='table' AND name= '{row.table_name}' """
                                                )  # SQL INJECTOIN MUCH
                                 # if count is 1, then table exists
                                 if cursor.fetchone(
