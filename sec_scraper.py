@@ -1,42 +1,26 @@
-from dateutil import parser
-from datetime import datetime
-from contextlib import closing
-import sqlite3
-from sqlite3 import Error
-import time
 import requests as req
-import requests_random_user_agent as ragent
+import requests_random_user_agent
 import pandas as pd
 from bs4 import BeautifulSoup as bs4
-import os, sys
 import re
+import sqlite3
+from sqlite3 import Error
+import os, sys
+from contextlib import closing
+import time
+from dateutil import parser
+from datetime import datetime
 
 # ---------------------------------------------
-# Refactor all of the below into a Class.
-company_CIKS = ["1018724", "1318605", "789019"]
-filing_types = ["10-k"]  # '10-k', '10-Q', '8-k', etc
+company_CIKS = ["1018724", "1318605", "789019", "320193"]
+filing_types = ["10-K"]  # '10-k', '10-Q', '8-k', etc
 db_name = "edgar.db"
-folder_path = r"/home/rocket/Code/Projects/Py/SECdb/sqlite/"  # convert to win64 'C:\'
+folder_path = r"/home/rocket/Code/Projects/Py/SECdb/sqlite"  # convert to win64 'C:\'
 db_path = f"{folder_path}/{db_name}"
 
 start_date = "2020-01-01"
 end_date = "2022-08-31"
 # ---------------------------------------------
-
-
-# class UserParams:
-
-#     @classmethod
-#     def __init__(self):
-#         self.company_CIKS = []
-#         self.filing_types = []
-#         self.db_name = 'edgar.db'
-#         self.folder_path = r"/home/rocket/Code/Projects/Py/SECdb/sqlite/"
-#         self.db_path = ''
-#         self.start_date = '2020-01-01'
-#         self.end_date = '2022-08-31'
-#         self. = []
-
 
 class DB_Connection:
 
@@ -108,7 +92,7 @@ class Filing_Links:
                     }
                     # req the url & parse response.
                     response = req.get(
-                        url=r"https://www.sec.gov/cgi-bin/browse-edgar",
+                        url=r"https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent",
                         params=filing_params,
                     )
 
@@ -221,8 +205,8 @@ class Filing_Links:
         except Exception as e:
             print(
                 f"Couldnt retrieve the table containing the necessary info. \
-                      \nAborting the program.\nIf index list is out of range, \
-                   that you entered the correct CIK number(s)."
+                  \nAborting the program.\nIf index list is out of range, \
+                  that you entered the correct CIK number(s)."
             )
             sys.exit(1)
 
@@ -305,7 +289,7 @@ class Filing_Links:
                         f"Error occured while attempting to insert values into the filing_list table.\n{e}"
                     )
 
-        DB_Connection.close_con()
+        DB_Connection.close_conn()
 
     # Extract individual table links to financial statements, supplementary data tables, etc (everything?)
     def get_table_links(self):
@@ -417,7 +401,7 @@ class Filing_Links:
                                   the individual_report_links table.\nAborting the program.\n{e}"
                         )
                         sys.exit(1)
-    DB_Connection.close_con()
+    DB_Connection.close_conn()
 
 
 class Extract_Data:
@@ -689,7 +673,7 @@ class Extract_Data:
                                             f"Couldnt migrate the {row.table_name} \
                                                  table to the normalized SQL db.\n{e}"
                                         )
-        DB_Connection.close_con()
+        DB_Connection.close_conn()
 
 
 # user_one = UserParams()
