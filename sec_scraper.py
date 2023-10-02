@@ -12,7 +12,7 @@ from dateutil import parser
 from datetime import datetime
 
 # ---------------------------------------------
-company_CIKS = ["1018724", "1318605", "789019", "320193"]
+company_CIKs = ["1018724", "1318605", "789019", "320193"]
 filing_types = ["10-K"]  # '10-k', '10-Q', '8-k', etc
 db_name = "edgar.db"
 folder_path = r"/home/rocket/Code/Projects/Py/SECdb/sqlite"  # convert to win64 'C:\'
@@ -26,13 +26,13 @@ class DB_Connection:
 
     """Initialize obj attrs"""
 
-    def __init__(self, db_name, folder_path, db_path):
+    def __init__(self, db_name, folder_path, db_path) -> None:
         self.db_name = db_name
         self.folder_path = folder_path
 
     """ Create a directory for the DB file if the directory doesnt exist."""
 
-    def create_folder(self):
+    def create_folder(self) -> None:
         if not os.path.exists(self.folder_path):
             os.makedirs(self.folder_path)
             print(f"Successfully created the new folder path {self.folder_path}")
@@ -42,16 +42,14 @@ class DB_Connection:
     # Open connection to the db, if the connection fails then abort.
     # If db file doesn't exist, automatically create itself.
     @classmethod
-    def open_con(cls, db_path):
+    def open_con(cls, db_path) :
         try:
             cls.conn = sqlite3.connect(db_path)
-            print(f"Successfully connected to the {db_path} ")
+            print(f"Successful connection to {db_path} ")
             return cls.conn
         except sqlite3.Error as e:
-            print(
-                f"Error occured, unable to connect to the {db_path} database.\n{e}\nAborting program"
-            )
-            sys.exit(1)
+            # print(f"Error occured, unable to connect to the {db_path} database.\n{e}\nAborting program")
+            sys.exit(f"Connection error to {db_name}", e)
 
     # close connection to the db.
     @classmethod
@@ -62,13 +60,14 @@ class DB_Connection:
             cls.conn.close()
             print("Closing all databse connections")
         except Exception as e:
-            print(f"Unable to close database connection.\n{e}")
+            sys.exit(f"Connection error, cannot disconnect from {db_name}", e)
+            # print(f"Unable to close database connection.\n{e}")
 
 
 class Filing_Links:
-    def __init__(self, company_CIKS, filing_types, start_date, end_date):
+    def __init__(self, company_CIKs, filing_types, start_date, end_date):
         # self.filing_types = [ item.upper() for item in self.filing_types ]
-        self.company_CIKS = company_CIKS
+        self.company_CIKs = company_CIKs
         # # Capitalize the letters of the forms, by default sqlite is case sensitive.
         self.filing_types = [item.upper() for item in filing_types]
         self.start_date = start_date
@@ -77,7 +76,7 @@ class Filing_Links:
     # Get all available filings for the specified CIKS and their respective links.
     def Get_FLinks(self):
         try:
-            for Company_CIK_Number in self.company_CIKS:
+            for Company_CIK_Number in self.company_CIKs:
                 for Filing_Type in self.filing_types:
                     # define the params dict
                     filing_params = {
@@ -92,7 +91,7 @@ class Filing_Links:
                     }
                     # req the url & parse response.
                     response = req.get(
-                        url=r"https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent",
+                        url=r"https://www.sec.gov/cgi-bin/browse-edgar",
                         params=filing_params,
                     )
 
@@ -296,7 +295,7 @@ class Filing_Links:
         dfs = []
         with DB_Connection.open_con(self.db_path) as conn:
             try:
-                for Company_CIK_Number in self.company_CIKS:
+                for Company_CIK_Number in self.company_CIKs:
                     for Filing_Type in self.filing_types:
                         df = pd.read_sql_query(
                             """
@@ -683,7 +682,7 @@ class Extract_Data:
 connection1 = DB_Connection(db_name, folder_path, db_path)
 connection1.create_folder()
 
-filings1 = Filing_Links(company_CIKS, filing_types, start_date, end_date)
+filings1 = Filing_Links(company_CIKs, filing_types, start_date, end_date)
 filings1.Get_FLinks()
 filings1.get_table_links()
 
