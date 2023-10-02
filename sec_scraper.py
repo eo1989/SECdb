@@ -12,7 +12,13 @@ from dateutil import parser
 from datetime import datetime
 
 # ---------------------------------------------
-company_CIKs = ["1018724", "1318605", "789019", "320193"]
+# double check each of these CIKs
+company_CIKs = [
+    "1018724",
+    "1318605",
+    "789019",
+    "320193",
+]
 filing_types = ["10-K"]  # '10-k', '10-Q', '8-k', etc
 db_name = "edgar.db"
 folder_path = r"/home/rocket/Code/Projects/Py/SECdb/sqlite"  # convert to win64 'C:\'
@@ -21,6 +27,7 @@ db_path = f"{folder_path}/{db_name}"
 start_date = "2020-01-01"
 end_date = "2022-08-31"
 # ---------------------------------------------
+
 
 class DB_Connection:
 
@@ -42,7 +49,7 @@ class DB_Connection:
     # Open connection to the db, if the connection fails then abort.
     # If db file doesn't exist, automatically create itself.
     @classmethod
-    def open_con(cls, db_path) :
+    def open_con(cls, db_path):
         try:
             cls.conn = sqlite3.connect(db_path)
             print(f"Successful connection to {db_path} ")
@@ -223,7 +230,6 @@ class Filing_Links:
         Filing_Number_Link,
         Xml_Summary,
     ):
-
         with DB_Connection.open_con(self.db_path) as conn:
             try:
                 with closing(conn.cursor()) as cursor:
@@ -244,7 +250,8 @@ class Filing_Links:
                         ;"""
                     )
             except ValueError as e:
-                print(f"Error occured while attempting to create the filing_list table.\
+                print(
+                    f"Error occured while attempting to create the filing_list table.\
                         \nAborting the program."
                 )
                 sys.exit(1)
@@ -400,6 +407,7 @@ class Filing_Links:
                                   the individual_report_links table.\nAborting the program.\n{e}"
                         )
                         sys.exit(1)
+
     DB_Connection.close_conn()
 
 
@@ -498,7 +506,9 @@ class Extract_Data:
                     try:
                         self.html_table_extractor(report_url)
                     except ValueError as e:
-                        print(f"Couldnt retrieve the table for filing number {filing_number} at {report_url}\n{e}")
+                        print(
+                            f"Couldnt retrieve the table for filing number {filing_number} at {report_url}\n{e}"
+                        )
                         break
                     else:
                         try:
@@ -513,7 +523,9 @@ class Extract_Data:
                             )
                             # remove all special chars (unicode, ascii) except '_'
                             table_name = re.sub(r"[^a-zA-Z0-9]+", "_", table_name)
-                            print(f"Inserting data from the dataframe into SQL table {table_name}")
+                            print(
+                                f"Inserting data from the dataframe into SQL table {table_name}"
+                            )
                             # check to see if the table already exists in db to avoid duplication
                             with closing(conn.cursor()) as cursor:
                                 cursor.execute(
@@ -527,28 +539,30 @@ class Extract_Data:
                                 else:
                                     # Write records that are stored in the Dataframe into a SQL server database.
                                     self.df_xml.to_sql(
-                                        con = conn,
-                                        name = table_name,
-                                        schema = "SCHEMA",
-                                        index = False,
-                                        if_exists = "fail",
+                                        con=conn,
+                                        name=table_name,
+                                        schema="SCHEMA",
+                                        index=False,
+                                        if_exists="fail",
                                     )
                         except ValueError as e:
                             print(
                                 f"Couldnt migrate the {short_name} table to the SQL database.\n{e}"
                             )
                 elif report_url.endswith(".xml"):
-                    print(".xml extension link detected. Unable to process the table.\
+                    print(
+                        ".xml extension link detected. Unable to process the table.\
                            \n.xml extension link support will be developed in the future."
                     )
                 else:
-                    print(f"Table for filing number {filing_number} couldnt be detected.")
+                    print(
+                        f"Table for filing number {filing_number} couldnt be detected."
+                    )
 
         DB_Connection.close_conn()
 
     # Normalizing data.
     def transpose(self):
-
         db2_path = self.db_path.replace(".db", "_transposed;db")
         with DB_Connection.open_con(self.db_path) as conn:
             try:
