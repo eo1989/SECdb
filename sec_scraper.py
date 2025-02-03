@@ -427,10 +427,10 @@ class Extract_Data:
                 print("Insert table data into the dataframe.")
                 self.df_xml = pd.read_html(str(table))[0]
                 self.df_xml = (
-                    self.df_xml.replace({"\$": ""}, regex=True)
-                    .replace({"\)": ""}, regex=True)
-                    .replace({"\(": ""}, regex=True)
-                    .replace({"\%": ""}, regex=True)
+                    self.df_xml.replace({r"\$": ""}, regex=True)
+                    .replace({r"\)": ""}, regex=True)
+                    .replace({r"\(": ""}, regex=True)
+                    .replace({r"\%": ""}, regex=True)
                     .replace({" ", "", 1}, regex=True)
                 )
 
@@ -579,7 +579,7 @@ class Extract_Data:
             for row in df_table_list.itertuples(index=False):
                 try:
                     df_table = pd.read_sql_query(
-                        """ SELECT * FROM "{}" """.format(row.table_name), con=conn
+                        f""" SELECT * FROM "{row.table_name}" """, con=conn
                     )
                 except ValueError as e:
                     print(f"couldnt read table {table_name}.\n{e}")
@@ -598,7 +598,7 @@ class Extract_Data:
                             df_table = df_table[1:]
                             # remove special chars again {unicode, ascii}, replace empty spaces with _
                             df_table = df_table.rename(
-                                columns=lambda x: re.sub("\W+", "_", str(x))
+                                columns=lambda x: re.sub(r"\W+", "_", str(x))
                             )
                             df_table.columns = df_table.columns.str.strip("_")
                             df_table.columns = df_table.columns.str.lower("_")
@@ -608,7 +608,7 @@ class Extract_Data:
                             try:
                                 date_list = []
                                 for item in df_table.iloc[:, 0]:
-                                    match = re.search("\D{3}. \d{2}, \d{4}", item)
+                                    match = re.search(r"\D{3}. \d{2}, \d{4}", item)
                                     if match is not None:
                                         # .strftime removes the timestamp
                                         date = parser.parse(match.group()).strftime(
