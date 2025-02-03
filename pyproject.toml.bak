@@ -1,0 +1,135 @@
+[project]
+name = "SECdb"
+version = "0"
+description = "SECdb"
+authors = [
+  { name = "eo1989", email = "7108365+eo1989@users.noreply.github.com" },
+]
+requires-python = ">=3.12"
+readme = "README.md"
+license = "MIT"
+dependencies = [
+  "requests>=2.32",
+  "requests-random-user-agent>=2023.1.13",
+  "pandas>=2.2",
+  "beautifulsoup4>=4.13",
+  "polars>=1.21",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.9.2", "yapf>=0.40.2", "pytest >=8.3.4", "hypothesis >=6.99"]
+
+[tool.uv]
+dev-dependencies = [
+  "ruff >=0.9.2",
+  "pytest >=8.3.4",
+  "hypothesis >=6.99",
+  "yapf >=0.40.2",
+  # "isort >=5.13",
+]
+
+[tool.ruff]
+line-length = 79
+target-version = "py312"
+include = [".ipynb", "*.qmd"]
+select = [
+  "UP",
+  "YTT",
+  "ANN",
+  "ASYNC",
+  "CPY",
+  "BLE",
+  "FBT",
+  "LOG",
+  "PIE",
+  "C4",
+  "A",
+  "B",
+  "S",
+  "G",
+  "T20",
+  "PYI",
+  "PT",
+  "RSE",
+  "RET",
+  "SLF",
+  "SLOT",
+  "SIM",
+  "TID",
+  "TC",
+  "INT",
+  "ARG",
+  "PTH",
+  "TD",
+  "PD",
+  "PGH",
+  "PL",
+  "PLE",
+  "PLR",
+  "PLW",
+  "TRY",
+  "FLY",
+  "NPY",
+  "FAST",
+  "AIR",
+  "PERF",
+  "FURB",
+  "DOC",
+  "RUF",
+]
+
+[tool.ruff.lint]
+preview = true
+# lint = true
+# format = true
+# select = []
+fixable = ["ALL"]
+unfixable = []
+
+ignore = [
+  "F4",
+  "F5",
+  "F8",
+  "I",
+  'INP',
+  "W",
+  "B",
+  "C",
+  "D",
+  "E2",
+  "E4",
+  "E5",
+  "E7",
+  "DTZ",
+  "DJ",
+  "EM",
+  "EXE",
+  "FA",
+  "ICN",
+  # per https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
+  "E111",
+  "E114",
+  "E117",
+  "D206",
+  "D300",
+  "Q000",
+  "Q001",
+  "Q002",
+  "Q003",
+  "COM812",
+  "COM819",
+  "ISC001",
+  "ISC002",
+]
+
+[tool.ruff.format]
+preview = true
+quote-style = "double"
+indent-style = "tab"
+docstring-code-format = true
+docstring-code-line-length = 78
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

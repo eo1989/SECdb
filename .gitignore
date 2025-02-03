@@ -1,1 +1,7 @@
+.venv
+.vscode
 .DS_Store
+.uv.lock
+requirements.txt
+.python-version
+.style.yapf
